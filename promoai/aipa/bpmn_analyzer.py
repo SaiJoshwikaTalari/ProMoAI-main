@@ -1,0 +1,91 @@
+from promoai.aipa.conversation import (
+    create_conversation,
+    create_message,
+    create_process_model_representation,
+)
+from promoai.general_utils.artifact_store import create_analysis_session
+from promoai.general_utils.llm_connection import query_llm
+
+
+class BPMNAnalyzer:
+    def __init__(
+        self,
+        api_key: str,
+        ai_model: str,
+        ai_provider: str,
+        initial_query: str,
+        bpmn_xml_string: str = None,
+        bpmn_json_string: str = None,
+        selected_elements_json: str = None,
+        model_abstraction="simplified_xml",
+        enable_role_prompting=True,
+        enable_natural_language_restriction=True,
+        enable_chain_of_thought=False,
+        enable_process_analysis=False,
+        enable_knowledge_injection=False,
+        enable_few_shots_learning=False,
+        enable_negative_prompting=False,
+        enable_examples=True,
+    ):
+
+        self.api_key = api_key
+        self.ai_model = ai_model
+        self.ai_provider = ai_provider
+        self.llm_args = {"artifact_session_dir": create_analysis_session("bpmn_query")}
+        self.model_abstraction = model_abstraction
+        self._conversation = create_conversation(
+            role="system",
+            model_abstraction=model_abstraction,
+            enable_role_prompting=enable_role_prompting,
+            enable_natural_language_restriction=enable_natural_language_restriction,
+            enable_chain_of_thought=enable_chain_of_thought,
+            enable_process_analysis=enable_process_analysis,
+            enable_knowledge_injection=enable_knowledge_injection,
+            enable_few_shots_learning=enable_few_shots_learning,
+            enable_negative_prompting=enable_negative_prompting,
+            enable_examples=enable_examples,
+        )
+
+        self._conversation.append(
+            create_process_model_representation(
+                model_abstraction=model_abstraction,
+                role="system",
+                xml_string=bpmn_xml_string,
+                json_abstraction=bpmn_json_string,
+            )
+        )
+
+        self.last_response = None
+        self.ask(initial_query, selected_elements_json=selected_elements_json)
+
+    def get_last_response(self) -> str | None:
+        return self.last_response
+
+    def ask(self, query: str, selected_elements_json: str = None) -> str | None:
+
+        user_message = create_message(
+            query, role="user", model_abstraction=self.model_abstraction
+        )
+
+        if selected_elements_json:
+            selected_elements_query = f"\n \n The user has exclusively selected the following elements of the BPMN model (represented as a json): {selected_elements_json}"
+        else:
+            selected_elements_query = f"\n \n The user has not selected any elements."
+
+        system_message = create_message(
+            message=selected_elements_query,
+            role="system",
+            model_abstraction=self.model_abstraction,
+        )
+        llm_messages = self._conversation + [system_message, user_message]
+
+        self.last_response = query_llm(
+            conversation=llm_messages,
+            api_key=self.api_key,
+            llm_name=self.ai_model,
+            ai_provider=self.ai_provider,
+            llm_args=self.llm_args,
+        )
+
+        self._conversation.append(user_message)
+        self._conversation.append({"role": "assistant", "content": self.last_response})

@@ -1,0 +1,29 @@
+name: myenv
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - pip
+  - graphviz
+  - pip:
+      - anthropic
+      - cohere
+      - google-genai
+      - kaleido
+      - markdown
+      - matplotlib
+      - networkx
+      - numpy
+      - scikit-learn
+      - pandas
+      - pillow
+      - plotly
+      - pm4py
+      - powl>=2.3.3
+      - requests
+      - rustxes
+      - seaborn
+      - streamlit
+      - tabulate
+      - xhtml2pdf
